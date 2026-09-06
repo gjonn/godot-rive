@@ -6,3 +6,7 @@
 *.os
 *.o
 .sconsign.dblite
+.build-venv/
+build/native/out/
+build/native/bin/
+build/native/dependencies/

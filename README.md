@@ -1,98 +1,41 @@
 # Godot Rive
 
-### An integration of Rive into Godot 4.1+ using GDExtension
+A maintained Rive integration for Godot 4.7, based on the original
+[kibble-cabal/godot-rive](https://github.com/kibble-cabal/godot-rive) source history.
+This is an independent repository.
 
-> [!WARNING]
-> This extension is in **alpha**. That means:
-> * You may encounter some bugs
-> * It's untested on many platforms
-> * Most features are implemented, but the API may change a little
+The current `RiveSurface` backend loads modern Rive exports with layout, embedded
+text, state machines and boolean/string view-model bindings. It renders a
+transparent texture through CoreGraphics and skips redraws once animation settles.
+The host keeps native Godot input, focus and accessibility controls.
 
-This extensions adds [Rive](https://rive.app) support to Godot 4.
+## Current support
 
-It makes use of the following third-party libraries:
-- [`rive-cpp`](https://github.com/rive-app/rive-cpp)
-- [`skia`](https://github.com/google/skia) (included in `rive-cpp`)
+- Tested: Godot **4.7.2**, **macOS arm64**, Mobile renderer.
+- Includes debug/release build targets and a regression probe.
+- Windows, Linux, Android, iOS and web binaries are not provided.
+- Rive scripting, audio, GPU rendering and image meshes are not supported here.
 
-## Table of Contents
+See [the backend documentation](native/README.md) for the API, limits and checks.
 
-1. [Features](#features)
-2. [Building](#building)
-3. [Installation](#installation)
-4. [Roadmap](#roadmap)
-5. [Contributing](#contributing)
-6. [Screenshots](#screenshots)
+## Build and install
 
-## Features
+Clone with submodules, then run on Apple Silicon with Xcode Command Line Tools:
 
-* Load `.riv` files (artboards, animations, and state machines)
-* Listen for input events
-* Change state machine properties in-editor and in code
-* Robust API for runtime interaction
-* Optimized for Godot
-
-## Building
-
-> [!IMPORTANT]
-> These instructions are only tested on M1 MacOS. You may have to modify `build/build.py` or `build/SConstruct` for your system.
-
-The following must be installed:
-- Python 3
-- [git](https://git-scm.com/)
-- [scons](https://scons.org/)
-- [ninja](https://ninja-build.org/)
-
-To build, run the following commands (from the root directory):
-```bash
-cd build
-python build.py
+```sh
+git submodule update --init --recursive
+python3 -m venv .build-venv
+.build-venv/bin/pip install -r build/requirements.txt
+.build-venv/bin/python build/build.py --install /path/to/game/addons/rive
 ```
 
-To see the available options, run:
-```bash
-python build.py --help
-```
+Both native libraries, the extension descriptor and license notices are copied
+into the target addon directory. Restart Godot when replacing a loaded library.
+Dependency versions are pinned by gitlinks and Rive's dependency build scripts.
 
-## Installation
+## Source history
 
-> [!IMPORTANT]
-> If you are not on M1 MacOS, you will need to build the extension yourself. Binaries are only provided for MacOS universal (debug and release).
-> Eventually, binaries will be provided for other platforms.
-
-1. Copy `demo/bin/`, `demo/icons/`, and `demo/rive.gdextension` to your project folder
-2. Update the paths in `rive.gdextension` to match your project folder structure
-
-## Roadmap
-- [x] Load `.riv` files
-- [x] Run and play Rive animations
-- [x] Raster image support
-- [x] Input events (hover, pressed, etc.)
-- [x] Alignment & size exported properties
-- [x] Multiple scenes/artboards
-- [x] Dynamic exported properties based on state machine
-- [x] API for interaction during runtime
-- [x] Add error handling
-- [x] Add signals for event listeners (hover, pressed, etc)
-- [x] Disable/enable event listeners (hover, pressed, etc) in API and editor
-- [x] Optimization
-- [x] Static editor preview
-- [x] Animated editor preview
-- [ ] Add reset button
-- [ ] `.riv` ResourceLoader (thumbnails)
-- [ ] Other platform support
-- [ ] Any missing features
-
-## Contributing
-
-Help would be MUCH appreciated testing and/or building for the following platforms:
-* Windows
-* Android
-* iOS
-* Linux
-* Web
-
-Feel free to contribute bug fixes (see open issues), documentation, or features as well.
-
-## Screenshots
-
-![In-editor screenshot](screenshots/screenshot_1.png)
+The upstream `src/`, `demo/`, screenshots and legacy Skia build files remain for
+reference. Their viewer API and bundled binaries are not the current backend and
+should not be installed alongside `RiveSurface`. New backend code lives under
+`native/` with its own MIT license; third-party licenses remain with their sources.

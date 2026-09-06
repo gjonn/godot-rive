@@ -1,0 +1,3 @@
+{
+  "enabled_classes": ["RefCounted", "FileAccess", "Image", "ImageTexture", "OS"]
+}
