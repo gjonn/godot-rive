@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 using namespace godot;
@@ -32,6 +33,7 @@ struct RiveSurface::Impl {
     Vector2i size;
     String error;
     bool dirty = true;
+    bool advancing = true;
     int64_t render_count = 0;
     double render_ms = 0.0;
 
@@ -95,6 +97,8 @@ void RiveSurface::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_boolean", "name"), &RiveSurface::get_boolean);
     ClassDB::bind_method(D_METHOD("set_text", "name", "value"), &RiveSurface::set_text);
     ClassDB::bind_method(D_METHOD("get_text", "name"), &RiveSurface::get_text);
+    ClassDB::bind_method(D_METHOD("set_number", "name", "value"), &RiveSurface::set_number);
+    ClassDB::bind_method(D_METHOD("get_number", "name"), &RiveSurface::get_number);
     ClassDB::bind_method(D_METHOD("get_layout_rect", "name"), &RiveSurface::get_layout_rect);
     ClassDB::bind_method(D_METHOD("pointer_move", "position"), &RiveSurface::pointer_move);
     ClassDB::bind_method(D_METHOD("pointer_down", "position"), &RiveSurface::pointer_down);
@@ -146,6 +150,8 @@ bool RiveSurface::load_file(const String &path, const String &artboard_name,
         bool accepted = false;
         if (value.get_type() == Variant::BOOL) accepted = set_boolean(key, value);
         else if (value.get_type() == Variant::STRING) accepted = set_text(key, value);
+        else if (value.get_type() == Variant::INT || value.get_type() == Variant::FLOAT)
+            accepted = set_number(key, value);
         if (!accepted) {
             impl->error = "Invalid initial view model property: " + key;
             impl->machine.reset();
@@ -181,9 +187,12 @@ bool RiveSurface::resize(Vector2i size) {
 Vector2i RiveSurface::get_size() const { return impl->size; }
 bool RiveSurface::advance(double seconds) {
     if (!is_loaded() || !std::isfinite(seconds) || seconds < 0) return false;
-    const bool active = impl->dirty || impl->machine->needsAdvance();
+    const bool active = impl->dirty || impl->advancing || impl->machine->needsAdvance();
     if (!active) return false;
-    impl->machine->advanceAndApply(static_cast<float>(std::min(seconds, 0.1)));
+    // Artboard data converters can animate after the state machine has settled.
+    // The aggregate return includes their work; needsAdvance() alone does not.
+    impl->advancing = impl->machine->advanceAndApply(
+        static_cast<float>(std::min(seconds, 0.1)));
     impl->dirty = false;
     return impl->render();
 }
@@ -210,6 +219,18 @@ bool RiveSurface::set_text(const String &name, const String &value) {
 String RiveSurface::get_text(const String &name) const {
     auto *property = impl->model ? impl->model->propertyString(name.utf8().get_data()) : nullptr;
     return property ? String::utf8(property->value().c_str()) : String();
+}
+bool RiveSurface::set_number(const String &name, double value) {
+    if (!std::isfinite(value) || std::abs(value) > std::numeric_limits<float>::max()) return false;
+    auto *property = impl->model ? impl->model->propertyNumber(name.utf8().get_data()) : nullptr;
+    if (!property) return false;
+    const float number = static_cast<float>(value);
+    if (property->value() != number) { property->value(number); impl->dirty = true; }
+    return true;
+}
+double RiveSurface::get_number(const String &name) const {
+    auto *property = impl->model ? impl->model->propertyNumber(name.utf8().get_data()) : nullptr;
+    return property ? property->value() : 0.0;
 }
 Rect2 RiveSurface::get_layout_rect(const String &name) const {
     if (!impl->artboard) return Rect2();

@@ -13,7 +13,9 @@ The host keeps native Godot input, focus and accessibility controls.
 
 - Tested: Godot **4.7.2**, **macOS arm64**, Mobile renderer.
 - Includes debug/release build targets and a regression probe.
-- Windows, Linux, Android, iOS and web binaries are not provided.
+- iOS arm64 device debug/release XCFrameworks compile and link with Xcode 26.6;
+  exported-game rendering and performance have not yet been tested on a device.
+- Windows, Linux, Android and web binaries are not provided.
 - Rive scripting, audio, GPU rendering and image meshes are not supported here.
 
 See [the backend documentation](native/README.md) for the API, limits and checks.
@@ -32,6 +34,15 @@ python3 -m venv .build-venv
 Both native libraries, the extension descriptor and license notices are copied
 into the target addon directory. Restart Godot when replacing a loaded library.
 Dependency versions are pinned by gitlinks and Rive's dependency build scripts.
+
+With full Xcode installed, build and install iOS device packages alongside macOS:
+
+```sh
+.build-venv/bin/python build/build.py --platform ios --install /path/to/game/addons/rive
+```
+
+Include your `.riv` assets in Godot's non-resource export filter. See
+[iOS packaging details](native/README.md#build-and-install).
 
 ## Source history
 

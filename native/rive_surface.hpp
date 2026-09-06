@@ -37,6 +37,8 @@ public:
     bool get_boolean(const String &name) const;
     bool set_text(const String &name, const String &value);
     String get_text(const String &name) const;
+    bool set_number(const String &name, double value);
+    double get_number(const String &name) const;
     Rect2 get_layout_rect(const String &name) const;
     void pointer_move(Vector2 position);
     void pointer_down(Vector2 position);

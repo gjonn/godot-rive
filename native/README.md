@@ -4,11 +4,14 @@ Maintained source: https://github.com/gjonn/godot-rive
 
 This backend loads current `.riv` files using the pinned official Rive C++
 runtime. It supports the menu's layout, embedded text, gradients, trim paths,
-state machines and boolean/string view-model bindings. It renders transparent
+state machines and boolean/string/number view-model bindings. It renders transparent
 RGBA through Rive's CoreGraphics renderer into a cached Godot ImageTexture.
 
-The included build targets **macOS arm64**, tested on Godot 4.7.2 / Mobile.
-Windows, Linux, Android, iOS and web binaries are not provided. This is not a
+The build targets **macOS arm64** and **iOS arm64 devices** (iOS 15+ by default).
+macOS runtime behavior is tested on Godot 4.7.2 / Mobile. iOS debug/release
+XCFrameworks have passed native compilation and entry-point linking with Xcode
+26.6; game export, device rendering and performance remain unverified.
+Windows, Linux, Android and web binaries are not provided. This is not a
 claim that every Rive feature is supported: scripting, audio and the Rive GPU
 renderer are disabled. The CoreGraphics backend does not implement image meshes.
 
@@ -16,7 +19,7 @@ renderer are disabled. The CoreGraphics backend does not implement image meshes.
 
 Create `RiveSurface` (a RefCounted) and call
 `load_file(path, artboard_name, state_machine_name, initial_values)`.
-The artboard needs a default view-model instance. Boolean/string initial values
+The artboard needs a default view-model instance. Boolean/string/number initial values
 are applied before the first state-machine advance, including reduced motion.
 `is_loaded()` and `get_error()` report failure without substituting artwork.
 
@@ -27,6 +30,10 @@ are applied before the first state-machine advance, including reduced motion.
   resizing replaces the texture. `get_image()` exposes the straight-alpha pixels.
 - `set_boolean` / `get_boolean`, `set_text` / `get_text` address VM properties by
   name. Setters return false for unknown properties or incompatible types.
+- `set_number` / `get_number` address numeric VM properties using Rive's float
+  precision. Setters reject non-finite and out-of-range values. Unknown reads
+  return zero; validate property names through setters. Unchanged values do
+  not dirty the rendering surface.
 - `get_layout_rect(name)` reports a LayoutComponent's artboard-space rectangle.
   Enable **Export name** on that component in Rive; stripped names cannot resolve.
 - `pointer_move`, `pointer_down`, `pointer_up` accept artboard coordinates for
@@ -53,6 +60,31 @@ python3 -m venv .build-venv
 The build script fails on any build or dependency error. Both debug and release
 libraries are installed with the descriptor and third-party license notices.
 Restart Godot after replacing a loaded native library; hot reload is disabled.
+
+For iOS, install full Xcode with the iPhone SDK, then run:
+
+```sh
+.build-venv/bin/python build/build.py --platform ios --install /path/to/game/addons/rive
+```
+
+This builds Rive (text/layout enabled), its CoreGraphics renderer, HarfBuzz,
+SheenBidi, Yoga, godot-cpp and RiveSurface for the iPhone SDK. It merges each
+target's static dependencies into one XCFramework, preserving the existing
+macOS binaries and descriptor entries. Clang module autolinking carries the
+CoreGraphics, CoreFoundation, CoreText and ImageIO dependencies into Xcode;
+no manual framework additions are needed. Each package must pass a standalone
+iOS executable link that references `rive_surface_init` before it is installed.
+That check does not export, sign or run the game.
+
+The installed packages contain an `ios-arm64` device slice. `--simulator` can
+add a separately built arm64 simulator slice; that optional path has not been
+validated in the initial device build. `--ios-min-version` defaults to 15.0
+for the wrapper and link probe; the pinned Rive libraries target iOS 13.0.
+
+In Godot's iOS export preset, include `assets/ui/rive/*.riv` (or the equivalent
+path for your project) in the non-resource export filter. RiveSurface reads
+these files directly through FileAccess, so Export All Resources alone is not
+sufficient. The installed `.gdextension` selects the debug/release iOS package.
 
 The source pins are the repository's `godot-cpp` and `thirdparty/rive-cpp`
 gitlinks. Rive's own build scripts pin its HarfBuzz, SheenBidi and Yoga dependencies.

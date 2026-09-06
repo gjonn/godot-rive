@@ -1,7 +1,8 @@
 #!/usr/bin/env python
+import os
 env = SConscript('../../godot-cpp/SConstruct', {'api_version': '4.7'})
-if env['platform'] != 'macos':
-    print('The CoreGraphics backend currently targets macOS. Other backends are not bundled.')
+if env['platform'] not in ('macos', 'ios'):
+    print('The CoreGraphics backend supports macOS and iOS only.')
     Exit(1)
 if env['arch'] != 'arm64':
     print('Build the Rive static libraries for the requested architecture first; this build targets arm64.')
@@ -11,10 +12,22 @@ env.Append(CPPPATH=['../../native', '../../thirdparty/rive-cpp/include',
                    '../../thirdparty/rive-cpp/cg_renderer/include'])
 env.Append(CPPDEFINES=['WITH_RIVE_TEXT', 'WITH_RIVE_LAYOUT'])
 env.Append(CXXFLAGS=['-std=c++17'])
-env.Append(LIBPATH=['out/release'])
-env.Append(LIBS=['rive_cg_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga'])
-env.Append(LINKFLAGS=['-framework', 'CoreGraphics', '-framework', 'CoreFoundation',
-                      '-framework', 'CoreText', '-framework', 'ImageIO'])
-library = env.SharedLibrary('bin/librive_surface.macos.' + env['target'] + '.arm64.dylib',
-                           source=Glob('../../native/*.cpp'))
+if env['platform'] == 'ios':
+    # Clang records Apple framework dependencies in the object files. They then
+    # propagate through the static XCFramework to Godot's Xcode link step.
+    # HarfBuzz also uses CoreText, although our wrapper does not call it directly.
+    env.Append(CXXFLAGS=['-fmodules', '-fcxx-modules', '-include', 'CoreText/CoreText.h'])
+    variant = 'simulator' if env['ios_simulator'] else 'device'
+    objects = [env.StaticObject('out/surface/ios/' + variant + '/' + env['target'] + '/' +
+                               os.path.splitext(source.name)[0] + env['OBJSUFFIX'], source)
+               for source in Glob('../../native/*.cpp')]
+    library = env.StaticLibrary('bin/librive_surface.ios.' + env['target'] +
+                                '.arm64.' + variant + '.a', source=objects)
+else:
+    env.Append(LIBPATH=['out/release'])
+    env.Append(LIBS=['rive_cg_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga'])
+    env.Append(LINKFLAGS=['-framework', 'CoreGraphics', '-framework', 'CoreFoundation',
+                          '-framework', 'CoreText', '-framework', 'ImageIO'])
+    library = env.SharedLibrary('bin/librive_surface.macos.' + env['target'] + '.arm64.dylib',
+                               source=Glob('../../native/*.cpp'))
 Default(library)
