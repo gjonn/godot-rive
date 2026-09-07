@@ -1,17 +1,28 @@
 #!/usr/bin/env python
 import os
 env = SConscript('../../godot-cpp/SConstruct', {'api_version': '4.7'})
-if env['platform'] not in ('macos', 'ios'):
-    print('The CoreGraphics backend supports macOS and iOS only.')
+if env['platform'] not in ('macos', 'ios', 'windows'):
+    print('RiveSurface supports macOS/iOS arm64 and Windows x86_64.')
     Exit(1)
-if env['arch'] != 'arm64':
+if env['arch'] != ('x86_64' if env['platform'] == 'windows' else 'arm64'):
     print('Build the Rive static libraries for the requested architecture first; this build targets arm64.')
     Exit(1)
 
 env.Append(CPPPATH=['../../native', '../../thirdparty/rive-cpp/include',
                    '../../thirdparty/rive-cpp/cg_renderer/include'])
 env.Append(CPPDEFINES=['WITH_RIVE_TEXT', 'WITH_RIVE_LAYOUT'])
-env.Append(CXXFLAGS=['-std=c++17'])
+if env['platform'] == 'windows':
+    env.Append(CPPPATH=['../../thirdparty/rive-cpp/renderer/include',
+                       '../../thirdparty/rive-cpp/decoders/include'])
+    env.Append(CPPDEFINES=['NDEBUG', 'NOMINMAX', '_USE_MATH_DEFINES'])
+    env.Append(CXXFLAGS=['/std:c++17'])
+    env.Append(LIBPATH=['out/windows_release'])
+    env.Append(LIBS=['rive_pls_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi',
+                    'rive_yoga', 'd3d11', 'dxgi', 'd3dcompiler'])
+    library = env.SharedLibrary('bin/librive_surface.windows.' + env['target'] + '.x86_64.dll',
+                               source=Glob('../../native/*.cpp'))
+else:
+    env.Append(CXXFLAGS=['-std=c++17'])
 if env['platform'] == 'ios':
     # Clang records Apple framework dependencies in the object files. They then
     # propagate through the static XCFramework to Godot's Xcode link step.
@@ -23,7 +34,7 @@ if env['platform'] == 'ios':
                for source in Glob('../../native/*.cpp')]
     library = env.StaticLibrary('bin/librive_surface.ios.' + env['target'] +
                                 '.arm64.' + variant + '.a', source=objects)
-else:
+elif env['platform'] == 'macos':
     env.Append(LIBPATH=['out/release'])
     env.Append(LIBS=['rive_cg_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga'])
     env.Append(LINKFLAGS=['-framework', 'CoreGraphics', '-framework', 'CoreFoundation',

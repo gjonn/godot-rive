@@ -1,0 +1,114 @@
+name: Build addon
+
+on:
+  pull_request:
+    paths: ['.github/workflows/build-addon.yml', 'build/**', 'native/**', 'godot-cpp', 'thirdparty/rive-cpp', '.gitmodules']
+  push:
+    branches: [main, 'codex/addon-build-releases']
+    tags: ['v*']
+    paths: ['.github/workflows/build-addon.yml', 'build/**', 'native/**', 'godot-cpp', 'thirdparty/rive-cpp', '.gitmodules']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: addon-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-26
+          - platform: ios
+            runner: macos-26
+          - platform: windows
+            runner: windows-2022
+    env:
+      # Scope long-path support to git subprocesses, including checkout.
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.longpaths
+      GIT_CONFIG_VALUE_0: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r build/requirements.txt
+      - name: Build and install debug and release
+        run: python build/build.py --platform ${{ matrix.platform }} --jobs 3 --install staging/addons/rive
+      - name: Verify installed libraries
+        run: python build/package.py verify --platform ${{ matrix.platform }} --addon staging/addons/rive --load
+      - name: Transfer build to bundle job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: internal-${{ matrix.platform }}
+          path: staging/addons/rive/
+          if-no-files-found: error
+          retention-days: 1
+
+  bundle:
+    name: Package all platforms
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s build/tests -v
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: internal-*
+          path: artifacts
+      - name: Assemble and check complete addon
+        run: python build/package.py bundle --inputs artifacts --output dist --revision "${{ github.sha }}"
+      - name: Upload installable addon
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          path: dist/rive-addon-all-platforms.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Describe download
+        run: |
+          echo 'Download **rive-addon-all-platforms.zip** above and extract into your Godot project root.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Includes macOS arm64, iOS arm64 device XCFrameworks, and Windows x86_64; debug and release for each.' >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Attach bundle to draft release
+    needs: bundle
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: rive-addon-all-platforms.zip
+          path: dist
+      - name: Create draft and attach addon
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "RiveSurface $RELEASE_TAG"
+          fi
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          gh release upload "$RELEASE_TAG" dist/rive-addon-all-platforms.zip --clobber

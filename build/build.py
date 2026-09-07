@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Godot 4.7 RiveSurface backend for macOS or iOS arm64."""
+"""Build RiveSurface for macOS/iOS arm64 or Windows x86_64."""
 import argparse
 import os
 from pathlib import Path
@@ -80,11 +80,12 @@ def install_descriptor(destination):
     lines = ['[configuration]', 'entry_symbol = "rive_surface_init"',
              'compatibility_minimum = "4.7"', 'reloadable = false', '', '[libraries]']
     for platform_name, extension, arch in (("macos", "dylib", ".arm64"),
-                                           ("ios", "xcframework", "")):
+                                           ("ios", "xcframework", ""),
+                                           ("windows", "dll", ".x86_64")):
         for target in ("debug", "release"):
             name = f"librive_surface.{platform_name}.template_{target}{arch}.{extension}"
             if (destination / "bin" / name).exists():
-                tag = f"{platform_name}.{target}" + (".arm64" if platform_name == "macos" else "")
+                tag = f"{platform_name}.{target}" + arch
                 lines.append(f'{tag} = "bin/{name}"')
     (destination / "rive_surface.gdextension").write_text("\n".join(lines) + "\n")
 
@@ -92,14 +93,18 @@ def install_descriptor(destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=("both", "debug", "release"), default="both")
-    parser.add_argument("--platform", choices=("macos", "ios"), default="macos")
+    parser.add_argument("--platform", choices=("macos", "ios", "windows"),
+                        default="windows" if platform.system() == "Windows" else "macos")
     parser.add_argument("--simulator", action="store_true", help="Include an iOS arm64 simulator slice.")
     parser.add_argument("--ios-min-version", default="15.0")
     parser.add_argument("--jobs", "-j", type=int, default=min(os.cpu_count() or 4, 8))
     parser.add_argument("--install", type=Path, help="Copy the built addon to this directory.")
     args = parser.parse_args()
-    if platform.system() != "Darwin" or platform.machine() != "arm64":
-        parser.error("This backend currently builds on macOS arm64 only.")
+    if args.platform == "windows":
+        if platform.system() != "Windows" or platform.machine().lower() not in ("amd64", "x86_64"):
+            parser.error("The Windows backend requires an x64 Windows build host.")
+    elif platform.system() != "Darwin" or platform.machine() != "arm64":
+        parser.error("Apple targets require a macOS arm64 build host.")
     if args.jobs < 1:
         parser.error("--jobs must be positive")
     if args.simulator and args.platform != "ios":
@@ -112,7 +117,10 @@ def main():
     env = os.environ.copy()
     env["RIVE_PREMAKE_ARGS"] = "--with_rive_text --with_rive_layout"
     targets = ("debug", "release") if args.target == "both" else (args.target,)
-    if args.platform == "ios":
+    if args.platform == "windows":
+        import windows
+        windows.build(args, ROOT, BUILD, targets)
+    elif args.platform == "ios":
         build_ios(args, runtime, env, targets)
     else:
         run([runtime / "build/build_rive.sh", "release", "--", *LIBRARIES], cwd=BUILD, env=env)
@@ -131,7 +139,9 @@ def main():
                     shutil.rmtree(destination / "bin" / name)
                 shutil.copytree(BUILD / "bin" / name, destination / "bin" / name)
             else:
-                name = f"librive_surface.macos.template_{target}.arm64.dylib"
+                name = (f"librive_surface.windows.template_{target}.x86_64.dll"
+                        if args.platform == "windows" else
+                        f"librive_surface.macos.template_{target}.arm64.dylib")
                 # A loaded Mach-O must get a new inode. In-place replacement can
                 # leave macOS's code-signature page cache attached to old bytes.
                 temporary = destination / "bin" / f"{name}.installing"
@@ -143,6 +153,7 @@ def main():
             ROOT / "native" / "LICENSE": "rive_surface.txt",
             ROOT / "godot-cpp" / "LICENSE.md": "godot_cpp.txt",
             runtime / "LICENSE": "rive_runtime.txt",
+            runtime / "renderer/LICENSE": "rive_renderer.txt",
             BUILD / "dependencies/rive-app_harfbuzz_rive_13.1.1/COPYING": "harfbuzz.txt",
             BUILD / "dependencies/Tehreer_SheenBidi_v2.6/LICENSE": "sheenbidi.txt",
             BUILD / "dependencies/rive-app_yoga_rive_changes_v2_0_1_3_grid/LICENSE": "yoga.txt",

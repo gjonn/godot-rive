@@ -7,8 +7,12 @@
 #include <rive/layout_component.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/viewmodel/runtime/viewmodel_instance_runtime.hpp>
+#ifdef _WIN32
+#include "d3d_surface.hpp"
+#else
 #include <cg_factory.hpp>
 #include <cg_renderer.hpp>
+#endif
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -20,12 +24,16 @@ using namespace godot;
 
 struct RiveSurface::Impl {
     // Factory outlives all Rive objects; machine is released before its artboard.
+#ifdef _WIN32
+    D3DSurface backend;
+#else
     rive::CGFactory factory;
+    CGContextRef context = nullptr;
+#endif
     rive::rcp<rive::File> file;
     std::unique_ptr<rive::ArtboardInstance> artboard;
     rive::rcp<rive::ViewModelInstanceRuntime> model;
     std::unique_ptr<rive::StateMachineInstance> machine;
-    CGContextRef context = nullptr;
     std::vector<uint8_t> pixels;
     PackedByteArray straight_pixels;
     Ref<Image> image;
@@ -42,18 +50,28 @@ struct RiveSurface::Impl {
         model = nullptr;
         artboard.reset();
         file = nullptr;
+#ifndef _WIN32
         if (context) CGContextRelease(context);
+#endif
     }
 
     bool render() {
-        if (!context || !artboard) return false;
+        if (!artboard) return false;
         const auto started = std::chrono::steady_clock::now();
+#ifdef _WIN32
+        if (!backend.render(artboard.get(), pixels)) {
+            error = String::utf8(backend.error().c_str());
+            return false;
+        }
+#else
+        if (!context) return false;
         std::fill(pixels.begin(), pixels.end(), 0);
         {
             rive::CGRenderer renderer(context, size.x, size.y);
             artboard->draw(&renderer);
         }
-        // CoreGraphics writes premultiplied RGBA. Godot's ordinary canvas blend
+#endif
+        // Both backends write premultiplied RGBA. Godot's ordinary canvas blend
         // expects straight alpha; undo it once, avoiding dark vector-edge halos.
         uint8_t *dst = straight_pixels.ptrw();
         for (size_t p = 0; p < pixels.size(); p += 4) {
@@ -120,8 +138,17 @@ bool RiveSurface::load_file(const String &path, const String &artboard_name,
         return false;
     }
     rive::ImportResult result;
+#ifdef _WIN32
+    auto* factory = impl->backend.factory();
+    if (!factory) {
+        impl->error = String::utf8(impl->backend.error().c_str());
+        return false;
+    }
+#else
+    auto* factory = &impl->factory;
+#endif
     impl->file = rive::File::import({bytes.ptr(), static_cast<size_t>(bytes.size())},
-                                    &impl->factory, &result);
+                                    factory, &result);
     if (!impl->file) {
         impl->error = "Rive import failed (" + String::num_int64(static_cast<int>(result)) + "): " + path;
         return false;
@@ -165,17 +192,27 @@ bool RiveSurface::load_file(const String &path, const String &artboard_name,
 
 bool RiveSurface::resize(Vector2i size) {
     if (!impl->artboard || size.x < 1 || size.y < 1 || size.x > 4096 || size.y > 4096) return false;
+#ifdef _WIN32
+    if (size == impl->size && impl->backend.ready()) return true;
+    if (!impl->backend.resize(size.x, size.y)) {
+        impl->error = String::utf8(impl->backend.error().c_str());
+        return false;
+    }
+#else
     if (size == impl->size && impl->context) return true;
     if (impl->context) { CGContextRelease(impl->context); impl->context = nullptr; }
+#endif
     impl->size = size;
     const size_t byte_count = static_cast<size_t>(size.x) * size.y * 4;
     impl->pixels.assign(byte_count, 0);
     impl->straight_pixels.resize(byte_count);
+#ifndef _WIN32
     CGColorSpaceRef color_space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     impl->context = CGBitmapContextCreate(impl->pixels.data(), size.x, size.y, 8,
         size.x * 4, color_space, kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(color_space);
     if (!impl->context) { impl->error = "Cannot allocate Rive rendering surface"; return false; }
+#endif
     impl->image.unref();
     impl->texture.unref();
     impl->artboard->width(size.x);

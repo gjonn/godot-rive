@@ -10,3 +10,10 @@
 build/native/out/
 build/native/bin/
 build/native/dependencies/
+__pycache__/
+*.obj
+*.lib
+*.exp
+staging/
+artifacts/
+dist/

@@ -7,13 +7,20 @@ runtime. It supports the menu's layout, embedded text, gradients, trim paths,
 state machines and boolean/string/number view-model bindings. It renders transparent
 RGBA through Rive's CoreGraphics renderer into a cached Godot ImageTexture.
 
-The build targets **macOS arm64** and **iOS arm64 devices** (iOS 15+ by default).
+The build targets **macOS arm64**, **iOS arm64 devices** (iOS 15+ by default),
+and **Windows x86_64**. Windows uses Rive's D3D11 renderer with texture readback.
 macOS runtime behavior is tested on Godot 4.7.2 / Mobile. iOS debug/release
 XCFrameworks have passed native compilation and entry-point linking with Xcode
 26.6; game export, device rendering and performance remain unverified.
-Windows, Linux, Android and web binaries are not provided. This is not a
-claim that every Rive feature is supported: scripting, audio and the Rive GPU
-renderer are disabled. The CoreGraphics backend does not implement image meshes.
+Linux, Android and web binaries are not provided. Scripting and audio are
+disabled. The Apple CoreGraphics backend does not implement image meshes.
+
+Prebuilt downloads: [Releases](https://github.com/gjonn/godot-rive/releases).
+Extract `rive-addon-all-platforms.zip` into your project root and restart Godot.
+The addon directory includes every supported platform and both build targets;
+Godot automatically selects the matching library. No editor plugin toggle is
+needed. iOS game export still requires Xcode and signing; this bundle contains
+device slices only, not simulator or Intel macOS binaries.
 
 ## API
 
