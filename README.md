@@ -5,7 +5,7 @@ A maintained Rive integration for Godot 4.7, based on the original
 This is an independent repository.
 
 The current `RiveSurface` backend loads modern Rive exports with layout, embedded
-text, state machines and boolean/string view-model bindings. It renders a
+text, state machines and boolean/string/number view-model bindings. It renders a
 transparent texture through CoreGraphics and skips redraws once animation settles.
 The host keeps native Godot input, focus and accessibility controls.
 
@@ -15,8 +15,11 @@ The host keeps native Godot input, focus and accessibility controls.
 - Includes debug/release build targets and a regression probe.
 - iOS arm64 device debug/release XCFrameworks compile and link with Xcode 26.6;
   exported-game rendering and performance have not yet been tested on a device.
-- Windows, Linux, Android and web binaries are not provided.
-- Rive scripting, audio, GPU rendering and image meshes are not supported here.
+- Web: bundled Canvas2D/WASM runtime and Godot adapter, tested in Chromium.
+  See [web installation and export setup](web/README.md).
+- Native Windows, Linux and Android binaries are not provided.
+- Rive scripting, audio and GPU rendering are disabled. The native CoreGraphics
+  renderer also does not support image meshes.
 
 See [the backend documentation](native/README.md) for the API, limits and checks.
 
@@ -43,6 +46,16 @@ With full Xcode installed, build and install iOS device packages alongside macOS
 
 Include your `.riv` assets in Godot's non-resource export filter. See
 [iOS packaging details](native/README.md#build-and-install).
+
+For Web, install the bundled browser addon alongside the native backend:
+
+```sh
+python3 build/build_web.py --install /path/to/game/addons/rive
+```
+
+Use `RiveRuntime.create_surface()` to select the native or web implementation.
+The [web guide](web/README.md) covers the required shell, export filters and
+rebuilding the pinned runtime.
 
 ## Source history
 

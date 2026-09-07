@@ -1,0 +1,67 @@
+diff --git a/wasm/build_wasm.sh b/wasm/build_wasm.sh
+index 3c72de0..866f76e 100755
+--- a/wasm/build_wasm.sh
++++ b/wasm/build_wasm.sh
+@@ -53,7 +53,7 @@ fi
+ 
+ OPTIONS=1
+ PREMAKE_FLAGS="--arch=wasm --out=$OUT_DIR "
+-PREMAKE_HEAVY_FLAGS="--with_rive_text --with_rive_audio=system --with_rive_layout --with_rive_scripting "
++PREMAKE_HEAVY_FLAGS="--with_rive_text --with_rive_layout "
+ WD=$(pwd)
+ NCPU=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)
+ export EMCC_CLOSURE_ARGS="--externs $WD/js/externs.js"
+diff --git a/wasm/premake5.lua b/wasm/premake5.lua
+index 6917ffa..63bd532 100644
+--- a/wasm/premake5.lua
++++ b/wasm/premake5.lua
+@@ -105,7 +105,7 @@ do
+     filter('options:config=release')
+     do
+         -- Link-time -Os gates emcc's wasm-opt pass; without it the wasm ships unoptimized.
+-        linkoptions({ '-Os', '-s ASSERTIONS=0', '--closure 1' })
++        linkoptions({ '-Os', '-s ASSERTIONS=0', '--closure 0' })
+     end
+ 
+     filter({})
+diff --git a/wasm/src/bindings.cpp b/wasm/src/bindings.cpp
+index 226ca58..178ae50 100644
+--- a/wasm/src/bindings.cpp
++++ b/wasm/src/bindings.cpp
+@@ -35,6 +35,7 @@
+ #include "rive/input/focus_manager.hpp"
+ #include "rive/input/focus_node.hpp"
+ #include "rive/layout.hpp"
++#include "rive/layout_component.hpp"
+ #include "rive/math/mat2d.hpp"
+ #include "rive/nested_artboard.hpp"
+ #include "rive/node.hpp"
+@@ -830,6 +831,18 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
+         .function("didChange",
+                   optional_override([](rive::ArtboardInstance& self) { return self.didChange(); }),
+                   allow_raw_pointers())
++        .function("layoutBounds", optional_override([](rive::ArtboardInstance& self,
++                                                       std::string name) -> emscripten::val {
++            auto* layout = self.find<rive::LayoutComponent>(name);
++            if (!layout) return emscripten::val::null();
++            auto bounds = layout->worldBounds();
++            auto result = emscripten::val::array();
++            result.set(0, bounds.left());
++            result.set(1, bounds.top());
++            result.set(2, bounds.width());
++            result.set(3, bounds.height());
++            return result;
++        }))
+         .function("transformComponent",
+                   optional_override([](rive::ArtboardInstance& self, const std::string& name) {
+                       return self.find<rive::TransformComponent>(name);
+@@ -1145,6 +1158,9 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
+             optional_override([](rive::StateMachineInstance& self, float elapsedTime) -> bool {
+                 return self.advance(elapsedTime);
+             }))
++        .function("needsAdvance", optional_override([](rive::StateMachineInstance& self) {
++            return self.needsAdvance();
++        }))
+         .function("advanceAndApply",
+                   optional_override([](rive::StateMachineInstance& self, double seconds) -> bool {
+                       return self.advanceAndApply(seconds);

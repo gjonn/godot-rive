@@ -1,0 +1,16 @@
+{
+  "source": "https://github.com/rive-app/rive-wasm",
+  "revision": "5d6ba49123f149d46f848359efadcd1559eda000",
+  "runtime_revision": "edddc609a6595b3a4bc9df637d47b4ae127a2a40",
+  "emscripten": "4.0.23",
+  "renderer": "Canvas2D",
+  "bindings": [
+    "Artboard.layoutBounds",
+    "StateMachineInstance.needsAdvance"
+  ],
+  "sha256": {
+    "LICENSE": "8a1efa755d19446b51a18e1c15f6308728da0b36283c4d38050698ad6954b69a",
+    "canvas_advanced.mjs": "f5f4090d74754fc74930e35b099969059933ab84c72d3772839e124fb4927612",
+    "rive.wasm": "ba9752e9d070c036dea9c779372ca3f15db8c2404640fdd31bc9b8869e334646"
+  }
+}

@@ -11,7 +11,9 @@ The build targets **macOS arm64** and **iOS arm64 devices** (iOS 15+ by default)
 macOS runtime behavior is tested on Godot 4.7.2 / Mobile. iOS debug/release
 XCFrameworks have passed native compilation and entry-point linking with Xcode
 26.6; game export, device rendering and performance remain unverified.
-Windows, Linux, Android and web binaries are not provided. This is not a
+Native Windows, Linux and Android binaries are not provided. A separate
+[web adapter](../web/README.md) supplies browser support through the shared
+`RiveRuntime` factory. This is not a
 claim that every Rive feature is supported: scripting, audio and the Rive GPU
 renderer are disabled. The CoreGraphics backend does not implement image meshes.
 
